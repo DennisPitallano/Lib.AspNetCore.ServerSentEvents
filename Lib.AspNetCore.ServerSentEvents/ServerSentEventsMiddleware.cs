@@ -54,17 +54,11 @@ namespace Lib.AspNetCore.ServerSentEvents
                     await client.ChangeReconnectIntervalAsync(_serverSentEventsService.ReconnectInterval.Value);
                 }
 
-                string lastEventId = context.Request.Headers[Constants.LAST_EVENT_ID_HTTP_HEADER];
-                if (!String.IsNullOrWhiteSpace(lastEventId))
-                {
-                    await _serverSentEventsService.OnReconnectAsync(client, lastEventId);
-                }
-
-                _serverSentEventsService.AddClient(client);
+                await ConnectClientAsync(context, client);
 
                 await context.RequestAborted.WaitAsync();
 
-                _serverSentEventsService.RemoveClient(client);
+                await DisconnectClientAsync(client);
             }
             else
             {
@@ -92,6 +86,28 @@ namespace Lib.AspNetCore.ServerSentEvents
 
                 return _completedTask;
             });
+        }
+
+        private async Task ConnectClientAsync(HttpContext context, ServerSentEventsClient client)
+        {
+            string lastEventId = context.Request.Headers[Constants.LAST_EVENT_ID_HTTP_HEADER];
+            if (!String.IsNullOrWhiteSpace(lastEventId))
+            {
+                await _serverSentEventsService.OnReconnectAsync(client, lastEventId);
+            }
+            else
+            {
+                await _serverSentEventsService.OnConnectAsync(client);
+            }
+
+            _serverSentEventsService.AddClient(client);
+        }
+
+        private async Task DisconnectClientAsync(ServerSentEventsClient client)
+        {
+            _serverSentEventsService.RemoveClient(client);
+
+            await _serverSentEventsService.OnDisconnectAsync(client);
         }
         #endregion
     }
